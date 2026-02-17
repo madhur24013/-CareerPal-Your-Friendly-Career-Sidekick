@@ -14,8 +14,9 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        // GitHub Actions won't have `.env.local`, so default to empty string.
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? ''),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? '')
       },
       resolve: {
         alias: {
