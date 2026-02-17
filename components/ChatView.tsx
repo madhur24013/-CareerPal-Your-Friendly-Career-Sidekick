@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { Message } from '../types.ts';
 import GuideTooltip from './GuideTooltip.tsx';
+import ApiKeyModal from './ApiKeyModal.tsx';
+import { getGeminiApiKey } from '../lib/apiKey.ts';
 
 const ChatView: React.FC = () => {
   const STORAGE_KEY = 'smart_resume_chats_v11';
@@ -70,14 +72,7 @@ const ChatView: React.FC = () => {
   };
 
   const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio) {
-      try {
-        await (window as any).aistudio.openSelectKey();
-        setShowKeyPrompt(false);
-      } catch (e) {
-        console.error("Key selection failed", e);
-      }
-    }
+    setShowKeyPrompt(true);
   };
 
   const callWithRetry = async (fn: () => Promise<any>, maxRetries = 3) => {
@@ -116,7 +111,13 @@ const ChatView: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        setShowKeyPrompt(true);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const history = messages
         .slice(-10) 
@@ -197,7 +198,7 @@ const ChatView: React.FC = () => {
       
       if (msg.includes('quota') || msg.includes('429')) {
         displayError = "The system has reached its current limit. To continue with uninterrupted analysis, please provide a personal API key from a paid project.";
-        if ((window as any).aistudio) setShowKeyPrompt(true);
+        setShowKeyPrompt(true);
       }
 
       setMessages(prev => [...prev, {
@@ -235,11 +236,9 @@ const ChatView: React.FC = () => {
           </button>
         </div>
         <div className="flex items-center gap-3">
-          {(window as any).aistudio && (
-             <button onClick={handleOpenKeySelector} className="w-8 h-8 rounded-full bg-white/5 hover:bg-[#13c8ec]/20 text-slate-400 hover:text-[#13c8ec] transition-all flex items-center justify-center border border-transparent hover:border-[#13c8ec]/30">
-               <i className="fas fa-key text-xs"></i>
-             </button>
-          )}
+          <button onClick={handleOpenKeySelector} className="w-8 h-8 rounded-full bg-white/5 hover:bg-[#13c8ec]/20 text-slate-400 hover:text-[#13c8ec] transition-all flex items-center justify-center border border-transparent hover:border-[#13c8ec]/30">
+            <i className="fas fa-key text-xs"></i>
+          </button>
           <button onClick={handleReset} className="px-5 py-2 rounded-lg bg-white/5 text-[10px] font-bold text-slate-400 hover:text-white border border-white/5 transition-all active:scale-95">
             Clear History
           </button>
@@ -387,19 +386,12 @@ const ChatView: React.FC = () => {
       </div>
 
       {showKeyPrompt && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="bg-[#101f22] border border-[#13c8ec]/20 p-8 rounded-2xl max-w-md w-full text-center shadow-2xl animate-in zoom-in-95">
-             <div className="w-16 h-16 bg-[#13c8ec]/10 rounded-full flex items-center justify-center mx-auto mb-6 text-[#13c8ec] text-2xl border border-[#13c8ec]/20 shadow-xl">
-                <i className="fas fa-key"></i>
-             </div>
-             <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-tight">Authentication Required</h3>
-             <p className="text-slate-400 text-sm mb-8 leading-relaxed">This high-performance mode requires an active API key to proceed with the analysis. Please select a key from a paid GCP project to continue.</p>
-             <div className="flex gap-3">
-                <button onClick={() => setShowKeyPrompt(false)} className="flex-1 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 font-bold text-[10px] uppercase tracking-widest transition-colors">Dismiss</button>
-                <button onClick={() => { handleOpenKeySelector(); setShowKeyPrompt(false); }} className="flex-1 py-3.5 rounded-xl bg-[#13c8ec] hover:bg-white text-[#0b1619] font-bold text-[10px] uppercase tracking-widest transition-colors shadow-lg active:scale-95">Select Key</button>
-             </div>
-          </div>
-        </div>
+        <ApiKeyModal
+          open={showKeyPrompt}
+          title="Gemini API key required"
+          description="To use CareerPal on GitHub Pages, paste your Gemini API key. It will be saved only in this browser."
+          onClose={() => setShowKeyPrompt(false)}
+        />
       )}
     </div>
   );

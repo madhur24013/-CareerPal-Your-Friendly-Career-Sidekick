@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { GeneratedVideo } from '../types.ts';
 import GuideTooltip from './GuideTooltip.tsx';
+import ApiKeyModal from './ApiKeyModal.tsx';
+import { getGeminiApiKey } from '../lib/apiKey.ts';
 
 const VideoView: React.FC = () => {
   const [prompt, setPrompt] = useState('');
@@ -15,17 +17,11 @@ const VideoView: React.FC = () => {
 
   const checkAndGenerate = async () => {
     if (!prompt.trim()) return;
-    if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-      setShowKeyPrompt(true);
-      return;
-    }
     generateIntro();
   };
 
   const handleOpenKeySelector = async () => {
-    await (window as any).aistudio.openSelectKey();
-    setShowKeyPrompt(false);
-    generateIntro();
+    setShowKeyPrompt(true);
   };
 
   const generateIntro = async () => {
@@ -34,7 +30,13 @@ const VideoView: React.FC = () => {
     setSystemError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        setShowKeyPrompt(true);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       setStatus('Making your video...');
       
       let operation = await ai.models.generateVideos({
@@ -60,7 +62,7 @@ const VideoView: React.FC = () => {
 
       const uri = operation.response?.generatedVideos?.[0]?.video?.uri;
       if (uri) {
-        const resp = await fetch(`${uri}&key=${process.env.API_KEY}`);
+        const resp = await fetch(`${uri}&key=${apiKey}`);
         if (!resp.ok) throw new Error("Sync Failed");
         
         const blob = await resp.blob();
@@ -89,21 +91,13 @@ const VideoView: React.FC = () => {
         <div className="max-w-5xl mx-auto space-y-10">
           
           {showKeyPrompt && (
-            <div className="p-10 bg-[#13c8ec]/5 border border-[#13c8ec]/20 rounded-3xl flex flex-col items-center text-center space-y-6 animate-in zoom-in-95 shadow-2xl">
-              <div className="w-16 h-16 rounded-2xl bg-[#13c8ec]/10 flex items-center justify-center text-[#13c8ec] text-2xl border border-[#13c8ec]/20 shadow-xl">
-                <i className="fas fa-key"></i>
-              </div>
-              <div className="max-w-md">
-                <h3 className="text-lg font-bold text-white uppercase tracking-tighter">Need a Paid API Key</h3>
-                <p className="text-sm text-slate-400 mt-2 leading-relaxed">Making videos takes a lot of work, so I need a key from a paid project to get started.</p>
-              </div>
-              <button 
-                onClick={handleOpenKeySelector}
-                className="bg-[#13c8ec] hover:bg-white text-[#0b1619] px-10 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-premium shadow-lg"
-              >
-                Select a Key
-              </button>
-            </div>
+            <ApiKeyModal
+              open={showKeyPrompt}
+              title="Gemini API key required"
+              description="Paste your Gemini API key to generate videos. It will be saved only in this browser."
+              onClose={() => setShowKeyPrompt(false)}
+              onSaved={() => generateIntro()}
+            />
           )}
 
           {!showKeyPrompt && (

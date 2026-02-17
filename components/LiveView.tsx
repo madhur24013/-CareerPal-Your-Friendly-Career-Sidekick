@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import GuideTooltip from './GuideTooltip.tsx';
+import ApiKeyModal from './ApiKeyModal.tsx';
+import { getGeminiApiKey } from '../lib/apiKey.ts';
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
@@ -93,6 +95,7 @@ const LiveView: React.FC = () => {
   const [timer, setTimer] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Standby');
   const [isAudioOnly, setIsAudioOnly] = useState(false);
+  const [showKeyPrompt, setShowKeyPrompt] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -134,7 +137,13 @@ const LiveView: React.FC = () => {
   const generateFinalAudit = async (chatHistory: typeof transcriptions) => {
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        setShowKeyPrompt(true);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const historyText = chatHistory.map(t => `${t.role}: ${t.text}`).join('\n');
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -182,6 +191,13 @@ const LiveView: React.FC = () => {
     setIsAudioOnly(false);
 
     try {
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        setIsInitializing(false);
+        setShowKeyPrompt(true);
+        return;
+      }
+
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -199,7 +215,7 @@ const LiveView: React.FC = () => {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
@@ -374,6 +390,15 @@ const LiveView: React.FC = () => {
           </div>
         </aside>
       </div>
+
+      {showKeyPrompt && (
+        <ApiKeyModal
+          open={showKeyPrompt}
+          title="Gemini API key required"
+          description="Paste your Gemini API key to use Interview Practice. It will be saved only in this browser."
+          onClose={() => setShowKeyPrompt(false)}
+        />
+      )}
     </div>
   );
 };

@@ -3,6 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 import { GeneratedImage } from '../types.ts';
 import GuideTooltip from './GuideTooltip.tsx';
 import * as db from '../lib/db.ts';
+import ApiKeyModal from './ApiKeyModal.tsx';
+import { getGeminiApiKey } from '../lib/apiKey.ts';
 
 const ImageView: React.FC = () => {
   const [prompt, setPrompt] = useState('');
@@ -35,20 +37,11 @@ const ImageView: React.FC = () => {
   const checkAndGenerate = async () => {
     if (!prompt.trim()) return;
     
-    if (usePro) {
-      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-        setShowKeyPrompt(true);
-        return;
-      }
-    }
-    
     generateImage();
   };
 
   const handleOpenKeySelector = async () => {
-    await (window as any).aistudio.openSelectKey();
-    setShowKeyPrompt(false);
-    generateImage();
+    setShowKeyPrompt(true);
   };
 
   const generateImage = async (customPrompt?: string) => {
@@ -58,7 +51,13 @@ const ImageView: React.FC = () => {
     setIsGenerating(true);
     setSystemError(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        setShowKeyPrompt(true);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const model = usePro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
       
       const contents: any = {
@@ -158,18 +157,13 @@ const ImageView: React.FC = () => {
       <div className="flex-1 p-8 md:p-12 overflow-y-auto custom-scrollbar">
         <div className="max-w-5xl mx-auto space-y-10">
           {showKeyPrompt && (
-            <div className="p-10 bg-[#13c8ec]/5 border border-[#13c8ec]/20 rounded-3xl flex flex-col items-center text-center space-y-6 animate-in zoom-in-95">
-              <div className="w-16 h-16 rounded-2xl bg-[#13c8ec]/10 flex items-center justify-center text-[#13c8ec] text-2xl border border-[#13c8ec]/20 shadow-xl">
-                <i className="fas fa-key"></i>
-              </div>
-              <div className="max-w-md">
-                <h3 className="text-lg font-bold text-white uppercase tracking-tighter">Need a Paid Key for This</h3>
-                <p className="text-sm text-slate-400 mt-2 leading-relaxed">High-def photos need a key from a paid project. But don't worry, the normal version is always here for you!</p>
-              </div>
-              <button onClick={handleOpenKeySelector} className="bg-[#13c8ec] hover:bg-white text-[#0b1619] px-10 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-premium">
-                Select a Key
-              </button>
-            </div>
+            <ApiKeyModal
+              open={showKeyPrompt}
+              title="Gemini API key required"
+              description="Paste your Gemini API key to generate images. It will be saved only in this browser."
+              onClose={() => setShowKeyPrompt(false)}
+              onSaved={() => generateImage()}
+            />
           )}
 
           {systemError && (
